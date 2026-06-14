@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Saboteur — Multiplayer</title>
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<style>
+:root {
+  --gold:#F5A623;--gold-d:#C47D0E;--green:#2ECC71;--green-d:#1A8A4A;
+  --red:#E74C3C;--blue:#3498DB;--purple:#9B59B6;
+  --dark:#1A1A2E;--darker:#12121F;--card:#2C2C4A;--border:#4A4A7A;
+  --tunnel:#8B6914;--rock:#4A4A5A;--text:#F0E6FF;--muted:#9090B0;--panel:#22223A;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--darker);color:var(--text);font-family:'Segoe UI',sans-serif;min-height:100vh;overflow-x:hidden}
+.screen{display:none;min-height:100vh}
+.screen.active{display:flex;flex-direction:column}
+
+/* LOBBY */
+#lobby-screen{align-items:center;justify-content:center;padding:2rem;text-align:center;background:radial-gradient(ellipse at 50% 30%,#2a1a5e 0%,#12121F 70%)}
+.gem{font-size:4rem;filter:drop-shadow(0 0 20px #F5A623);animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+h1.gt{font-size:3rem;font-weight:900;letter-spacing:5px;background:linear-gradient(135deg,#F5A623,#FFD700,#F5A623);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-transform:uppercase;margin-bottom:.2rem}
+.sub{color:var(--muted);font-size:.85rem;letter-spacing:3px;margin-bottom:2rem}
+.lobby-box{background:var(--panel);border-radius:16px;padding:2rem;max-width:440px;width:100%;border:1px solid var(--border)}
+.tabs{display:flex;gap:.5rem;margin-bottom:1.5rem}
+.tab{flex:1;padding:.6rem;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--muted);cursor:pointer;font-size:.9rem;transition:all .2s}
+.tab.active{background:var(--gold);border-color:var(--gold);color:#000;font-weight:700}
+.section{display:none}.section.active{display:block}
+.lbl{font-size:.8rem;color:var(--muted);margin-bottom:.4rem;text-align:left}
+input.inp{width:100%;padding:.7rem 1rem;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:.95rem;margin-bottom:1rem;outline:none}
+input.inp:focus{border-color:var(--gold)}
+.big-btn{width:100%;padding:1rem;border-radius:12px;border:none;font-size:1.1rem;font-weight:800;cursor:pointer;letter-spacing:1px;transition:all .2s;text-transform:uppercase;margin-bottom:.5rem}
+.big-btn:hover{transform:translateY(-2px);filter:brightness(1.1)}
+.btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold-d));color:#000}
+.btn-blue{background:var(--blue);color:#fff}
+.room-id-display{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:1rem;text-align:center}
+.room-id-display .rid{font-size:2rem;font-weight:900;color:var(--gold);letter-spacing:4px}
+.room-id-display .hint{font-size:.75rem;color:var(--muted)}
+.players-waiting{display:flex;flex-direction:column;gap:.4rem;margin-bottom:1rem;max-height:200px;overflow-y:auto}
+.pw-item{display:flex;align-items:center;gap:.5rem;padding:.5rem .75rem;background:var(--card);border-radius:8px;font-size:.85rem}
+.pw-dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:blink 1.5s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.status-bar{background:var(--card);border-radius:8px;padding:.5rem .75rem;font-size:.78rem;color:var(--muted);margin-bottom:.5rem;min-height:32px;text-align:center}
+
+/* ROLE SCREEN */
+#role-screen{align-items:center;justify-content:center;background:var(--darker);padding:2rem;text-align:center}
+.role-card{background:var(--panel);border-radius:20px;padding:2.5rem;max-width:380px;width:100%;border:2px solid var(--border)}
+.role-icon{font-size:5rem;margin-bottom:1rem}
+.role-name{font-size:2rem;font-weight:800;margin-bottom:.5rem}
+.role-name.miner{color:var(--green)}.role-name.saboteur{color:var(--red)}
+.role-desc{color:var(--muted);margin-bottom:1.5rem;line-height:1.6;font-size:.9rem}
+.role-btn{background:var(--card);border:1px solid var(--border);color:var(--text);padding:.8rem 2rem;border-radius:10px;cursor:pointer;font-size:1rem;transition:all .2s}
+.role-btn:hover{background:var(--border)}
+.waiting-msg{color:var(--muted);font-size:.9rem;margin-top:1rem}
+
+/* GAME SCREEN */
+#game-screen{flex-direction:row;height:100vh;overflow:hidden}
+.left-panel{width:200px;min-width:200px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:.75rem;gap:.6rem;overflow-y:auto}
+.ptitle{color:var(--gold);font-size:.7rem;letter-spacing:2px;text-transform:uppercase;font-weight:700}
+.player-list{display:flex;flex-direction:column;gap:.3rem}
+.player-item{display:flex;align-items:center;gap:.4rem;padding:.4rem .5rem;border-radius:6px;background:var(--card);border:1px solid transparent;font-size:.8rem;transition:all .2s}
+.player-item.current{border-color:var(--gold);background:rgba(245,166,35,.15)}
+.player-item.you{border-color:var(--blue);background:rgba(52,152,219,.1)}
+.player-item.current.you{border-color:var(--gold)}
+.p-av{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0}
+.p-nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brk-ic{color:var(--red);font-size:.7rem}
+.divider{border:none;border-top:1px solid var(--border)}
+.round-info{text-align:center}
+.round-info .big{font-size:1.4rem;font-weight:800;color:var(--gold)}
+.round-info .lbl2{font-size:.7rem;color:var(--muted)}
+.deck-info{display:flex;gap:.4rem}
+.deck-pill{flex:1;padding:.35rem;background:var(--card);border-radius:6px;text-align:center;border:1px solid var(--border)}
+.deck-pill .dn{font-size:1rem;font-weight:700;color:var(--gold)}
+.deck-pill .dl{font-size:.62rem;color:var(--muted)}
+.log-area{flex:1;background:var(--card);border-radius:6px;border:1px solid var(--border);padding:.4rem;overflow-y:auto;font-size:.68rem;line-height:1.6}
+.log-entry{color:var(--muted);border-bottom:1px solid rgba(255,255,255,.05);padding:2px 0}
+.log-entry.good{color:var(--green)}.log-entry.bad{color:var(--red)}.log-entry.info{color:var(--gold)}
+.board-area{flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:1rem;background:#0D0D1A}
+.mine-grid{display:grid;grid-template-columns:repeat(9,68px);grid-template-rows:repeat(5,68px);gap:4px}
+.cell{width:68px;height:68px;border-radius:6px;border:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;position:relative;font-size:.65rem;color:var(--muted);background:rgba(255,255,255,.03)}
+.cell:hover{border-color:var(--gold);background:rgba(245,166,35,.08)}
+.cell.has-card{cursor:default}.cell.has-card:hover{border-color:rgba(255,255,255,.08);background:none}
+.cell.placeable{border-color:var(--green);background:rgba(46,204,113,.1);cursor:pointer}
+.cell.placeable:hover{background:rgba(46,204,113,.2)}
+.cell.selected-cell{outline:2px solid var(--gold);outline-offset:2px}
+.tc{position:absolute;top:0;left:0;pointer-events:none}
+.right-panel{width:250px;min-width:250px;background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;padding:.75rem;gap:.6rem;overflow-y:auto}
+.turn-badge{background:rgba(245,166,35,.15);border:1px solid var(--gold);border-radius:10px;padding:.5rem;text-align:center}
+.turn-badge .pname{font-weight:700;color:var(--gold);font-size:.9rem}
+.turn-badge .hint{font-size:.7rem;color:var(--muted)}
+.hand-area{display:flex;flex-direction:column;gap:.35rem}
+.hand-card{background:var(--card);border:1.5px solid var(--border);border-radius:8px;padding:.5rem .65rem;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:.5rem;min-height:48px}
+.hand-card:hover{border-color:var(--gold);transform:translateX(-3px)}
+.hand-card.selected{border-color:var(--gold);background:rgba(245,166,35,.2);transform:translateX(-5px)}
+.hand-card.action-card{border-color:var(--blue)}
+.hand-card.action-card.selected{background:rgba(52,152,219,.2)}
+.hand-card.disabled{opacity:.4;cursor:not-allowed;transform:none !important}
+.hc-icon{font-size:1.3rem;flex-shrink:0}
+.hc-info{flex:1}
+.hc-name{font-size:.78rem;font-weight:600}
+.hc-desc{font-size:.65rem;color:var(--muted);line-height:1.3}
+.sel-info{font-size:.7rem;color:var(--muted);text-align:center;background:var(--card);border-radius:6px;padding:.35rem}
+.action-btns{display:flex;flex-direction:column;gap:.4rem}
+.act-btn{padding:.6rem;border-radius:8px;border:none;font-size:.82rem;font-weight:700;cursor:pointer;transition:all .2s}
+.act-btn:hover{transform:translateY(-1px);filter:brightness(1.1)}
+.act-btn:disabled{opacity:.4;cursor:not-allowed;transform:none !important;filter:none}
+.btn-flip{background:var(--purple);color:#fff}
+.btn-place{background:var(--green);color:#000}
+.btn-action{background:var(--blue);color:#fff}
+.btn-discard{background:var(--card);border:1px solid var(--border);color:var(--muted)}
+.goals-info{display:flex;gap:.4rem}
+.goal-pill{flex:1;padding:.35rem;border-radius:6px;text-align:center;border:1px solid var(--border);font-size:.68rem;background:var(--card)}
+.goal-pill.revealed{border-color:var(--gold);background:rgba(245,166,35,.1);color:var(--gold)}
+.goal-pill.found{border-color:var(--green);background:rgba(46,204,113,.15);color:var(--green)}
+.waiting-turn{background:rgba(52,152,219,.1);border:1px solid var(--blue);border-radius:8px;padding:.75rem;text-align:center;font-size:.82rem;color:var(--blue)}
+
+/* END */
+#end-screen{align-items:center;justify-content:center;padding:2rem;background:var(--darker);text-align:center}
+.end-card{background:var(--panel);border-radius:20px;padding:2.5rem;max-width:480px;width:100%;border:2px solid var(--border)}
+.end-icon{font-size:5rem;margin-bottom:.5rem}
+.end-title{font-size:2rem;font-weight:900;margin-bottom:1rem}
+.score-list{list-style:none;text-align:left;margin-bottom:1.5rem}
+.score-list li{display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid var(--border);font-size:.88rem}
+.score-val{font-weight:700;color:var(--gold)}
+
+/* OVERLAY */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center;z-index:100}
+.overlay.visible{display:flex}
+.overlay-box{background:var(--panel);border-radius:16px;padding:1.5rem;max-width:340px;width:90%;border:1px solid var(--border)}
+.overlay-box h3{color:var(--gold);margin-bottom:1rem;font-size:1rem}
+.target-players{display:flex;flex-direction:column;gap:.4rem}
+.tgt-btn{background:var(--card);border:1px solid var(--border);color:var(--text);padding:.55rem .9rem;border-radius:8px;cursor:pointer;font-size:.85rem;transition:all .2s;text-align:left}
+.tgt-btn:hover{border-color:var(--blue);background:rgba(52,152,219,.15)}
+.cancel-tgt{margin-top:.75rem;width:100%;padding:.5rem;background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;cursor:pointer;font-size:.82rem}
+.toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%) translateY(100px);background:var(--panel);border:1px solid var(--border);color:var(--text);padding:.65rem 1.4rem;border-radius:10px;font-size:.85rem;z-index:200;transition:transform .3s;white-space:nowrap}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast.success{border-color:var(--green);color:var(--green)}
+.toast.error{border-color:var(--red);color:var(--red)}
+.conn-badge{font-size:.68rem;padding:.2rem .5rem;border-radius:4px;background:rgba(46,204,113,.2);color:var(--green);border:1px solid var(--green)}
+.conn-badge.off{background:rgba(231,76,60,.1);color:var(--red);border-color:var(--red)}
+
+@media(max-width:900px){#game-screen{flex-direction:column;height:auto;overflow:auto}.left-panel,.right-panel{width:100%;min-width:unset}.board-area{overflow-x:auto}}
+</style>
+</head>
+<body>
+
+<!-- LOBBY -->
+<div id="lobby-screen" class="screen active">
+  <div class="gem">💎</div>
+  <h1 class="gt">Saboteur</h1>
+  <p class="sub">MULTIPLAYER · P2P</p>
+  <div class="lobby-box">
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('host')">⛏ Host Game</button>
+      <button class="tab" onclick="switchTab('join')">🚪 Join Game</button>
+    </div>
+    <div id="sec-host" class="section active">
+      <div class="lbl">Your name</div>
+      <input class="inp" id="host-name" placeholder="Enter your name" value="Player 1" maxlength="16">
+      <div class="lbl">Number of players</div>
+      <div style="display:flex;gap:.5rem;margin-bottom:1rem">
+        <button class="tab" id="pc3" onclick="setPC(3)">3</button>
+        <button class="tab active" id="pc5" onclick="setPC(5)">5</button>
+        <button class="tab" id="pc4" onclick="setPC(4)">4</button>
+        <button class="tab" id="pc6" onclick="setPC(6)">6</button>
+        <button class="tab" id="pc7" onclick="setPC(7)">7</button>
+      </div>
+      <div class="status-bar" id="host-status">Click "Create Room" to start</div>
+      <button class="big-btn btn-gold" onclick="createRoom()">Create Room</button>
+      <div id="room-created" style="display:none">
+        <div class="room-id-display">
+          <div class="rid" id="room-id-display">----</div>
+          <div class="hint">Share this code with players</div>
+        </div>
+        <div class="lbl">Waiting for players (<span id="joined-count">1</span>/<span id="total-count">5</span>)</div>
+        <div class="players-waiting" id="players-waiting"></div>
+        <button class="big-btn btn-gold" id="start-game-btn" onclick="hostStartGame()" disabled>Start Game</button>
+      </div>
+    </div>
+    <div id="sec-join" class="section">
+      <div class="lbl">Your name</div>
+      <input class="inp" id="join-name" placeholder="Enter your name" value="Player 2" maxlength="16">
+      <div class="lbl">Room code</div>
+      <input class="inp" id="join-code" placeholder="Enter room code" maxlength="8" style="text-transform:uppercase;letter-spacing:3px;font-size:1.2rem;text-align:center">
+      <div class="status-bar" id="join-status">Enter room code and click Join</div>
+      <button class="big-btn btn-blue" onclick="joinRoom()">Join Room</button>
+    </div>
+  </div>
+</div>
+
+<!-- ROLE REVEAL -->
+<div id="role-screen" class="screen">
+  <div class="role-card">
+    <div class="role-icon" id="ri">⛏️</div>
+    <div class="role-name" id="rn">Gold Miner</div>
+    <p class="role-desc" id="rd"></p>
+    <button class="role-btn" id="role-ack-btn" onclick="ackRole()">I understand my role ✓</button>
+    <p class="waiting-msg" id="role-wait" style="display:none">Waiting for all players to acknowledge…</p>
+  </div>
+</div>
+
+<!-- GAME -->
+<div id="game-screen" class="screen">
+  <div class="left-panel">
+    <div class="ptitle">Players</div>
+    <div class="player-list" id="player-list"></div>
+    <hr class="divider">
+    <div class="round-info"><div class="big" id="round-num">1</div><div class="lbl2">ROUND</div></div>
+    <hr class="divider">
+    <div class="ptitle">Deck</div>
+    <div class="deck-info">
+      <div class="deck-pill"><div class="dn" id="deck-count">0</div><div class="dl">Cards</div></div>
+      <div class="deck-pill"><div class="dn" id="disc-count">0</div><div class="dl">Disc.</div></div>
+    </div>
+    <hr class="divider">
+    <div class="ptitle">Goals</div>
+    <div class="goals-info" id="goals-info"></div>
+    <hr class="divider">
+    <div class="ptitle">Log</div>
+    <div class="log-area" id="log-area"></div>
+  </div>
+  <div class="board-area"><div class="mine-grid" id="mine-grid"></div></div>
+  <div class="right-panel">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div class="turn-badge" style="flex:1">
+        <div class="pname" id="cur-pname">Player 1</div>
+        <div class="hint" id="cur-hint">Your turn</div>
+      </div>
+      <span class="conn-badge" id="conn-badge" style="margin-left:.5rem">P2P</span>
+    </div>
+    <div id="waiting-turn-msg" class="waiting-turn" style="display:none">⌛ Waiting for their move…</div>
+    <div class="ptitle">Your Hand</div>
+    <div class="hand-area" id="hand-area"></div>
+    <hr class="divider">
+    <div id="sel-info" class="sel-info" style="display:none"></div>
+    <div class="action-btns">
+      <button class="act-btn btn-flip" id="flip-btn" style="display:none" onclick="flipSelected()">🔄 Rotate Card</button>
+      <button class="act-btn btn-place" id="place-btn" disabled onclick="placeCard()">Place Tunnel</button>
+      <button class="act-btn btn-action" id="action-btn" disabled onclick="useActionCard()">Use Action Card</button>
+      <button class="act-btn btn-discard" onclick="discardSelected()">Discard Selected</button>
+    </div>
+  </div>
+</div>
+
+<!-- END -->
+<div id="end-screen" class="screen">
+  <div class="end-card">
+    <div class="end-icon" id="end-icon">💎</div>
+    <div class="end-title" id="end-title">Miners Win!</div>
+    <ul class="score-list" id="score-list"></ul>
+    <button class="big-btn btn-gold" onclick="location.reload()">Play Again</button>
+  </div>
+</div>
+
+<!-- Target overlay -->
+<div class="overlay" id="tgt-overlay">
+  <div class="overlay-box">
+    <h3 id="tgt-title">Choose target</h3>
+    <div class="target-players" id="tgt-players"></div>
+    <button class="cancel-tgt" onclick="closeTgt()">Cancel</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+//  SABOTEUR MULTIPLAYER — P2P via PeerJS
+//  Architecture: Star topology. Host = game master.
+//  Host holds authoritative state, broadcasts to all peers.
+//  Peers send moves to host, host validates + broadcasts update.
+// ══════════════════════════════════════════════════════════════
+
+const COLS=9,ROWS=5,START_COL=0,START_ROW=2,GOAL_COL=8;
+const GOAL_ROWS=[0,2,4];
+const COLORS=['#E74C3C','#3498DB','#2ECC71','#F39C12','#9B59B6','#1ABC9C','#E67E22'];
+
+const TUNNEL_TYPES=[
+  {id:'cross',name:'Crossroads',icon:'⊕',paths:{T:1,R:1,B:1,L:1},count:5},
+  {id:'str-h',name:'Tunnel H',icon:'━',paths:{T:0,R:1,B:0,L:1},count:5},
+  {id:'str-v',name:'Tunnel V',icon:'┃',paths:{T:1,R:0,B:1,L:0},count:4},
+  {id:'turn-tr',name:'Turn TR',icon:'╰',paths:{T:1,R:1,B:0,L:0},count:5},
+  {id:'turn-br',name:'Turn BR',icon:'╭',paths:{T:0,R:1,B:1,L:0},count:5},
+  {id:'turn-bl',name:'Turn BL',icon:'╮',paths:{T:0,R:0,B:1,L:1},count:5},
+  {id:'turn-tl',name:'Turn TL',icon:'╯',paths:{T:1,R:0,B:0,L:1},count:5},
+  {id:'t-trb',name:'T-Junction',icon:'┣',paths:{T:1,R:1,B:1,L:0},count:5},
+  {id:'t-rbl',name:'T-Junction',icon:'┻',paths:{T:0,R:1,B:1,L:1},count:5},
+  {id:'t-tbl',name:'T-Junction',icon:'┫',paths:{T:1,R:0,B:1,L:1},count:5},
+  {id:'t-trl',name:'T-Junction',icon:'┳',paths:{T:1,R:1,B:0,L:1},count:5},
+  {id:'dead-r',name:'Dead End →',icon:'▶',paths:{T:0,R:1,B:0,L:0},count:3},
+  {id:'dead-l',name:'Dead End ←',icon:'◀',paths:{T:0,R:0,B:0,L:1},count:3},
+  {id:'dead-t',name:'Dead End ↑',icon:'▲',paths:{T:1,R:0,B:0,L:0},count:3},
+  {id:'dead-b',name:'Dead End ↓',icon:'▼',paths:{T:0,R:0,B:1,L:0},count:3},
+];
+const ACTION_TYPES=[
+  {id:'map',name:'Map',icon:'🗺️',desc:'Peek at a goal card',count:6},
+  {id:'collapse',name:'Cave-in',icon:'💥',desc:'Remove a tunnel card',count:3},
+  {id:'fix-pick',name:'Fix Pickaxe',icon:'⛏️',desc:"Fix a broken pickaxe",count:2},
+  {id:'fix-lamp',name:'Fix Lamp',icon:'🔦',desc:"Fix a broken lamp",count:2},
+  {id:'fix-cart',name:'Fix Cart',icon:'🛒',desc:"Fix a broken cart",count:2},
+  {id:'brk-pick',name:'Break Pickaxe',icon:'🚫⛏',desc:"Break someone's pickaxe",count:3},
+  {id:'brk-lamp',name:'Break Lamp',icon:'🚫🔦',desc:"Break someone's lamp",count:3},
+  {id:'brk-cart',name:'Break Cart',icon:'🚫🛒',desc:"Break someone's cart",count:3},
+];
+
+// ── NETWORK STATE ──
+let peer=null, myId=null, myName='', myRole=null;
+let isHost=false, hostConn=null;
+let peerConns={};   // peerId → DataConnection (host only)
+let numPlayers=5, roomCode='';
+let roleAcked=false, ackedCount=0;
+
+// ── GAME STATE (authoritative on host) ──
+let G={};
+// Local selection state (each browser manages own)
+let selectedCard=null, selectedCellKey=null;
+
+// ── PC SELECTION ──
+let chosenPC=5;
+function setPC(n){
+  chosenPC=n;
+  [3,4,5,6,7].forEach(x=>{
+    const b=document.getElementById('pc'+x);
+    if(b) b.classList.toggle('active',x===n);
+  });
+}
+
+function switchTab(t){
+  document.querySelectorAll('.tab').forEach(b=>{
+    if(b.dataset.tab||b.closest('.tabs')) {}
+  });
+  ['host','join'].forEach(id=>{
+    document.getElementById('sec-'+id).classList.toggle('active',id===t);
+  });
+  document.querySelectorAll('.tabs .tab').forEach(b=>{
+    b.classList.toggle('active',b.textContent.toLowerCase().includes(t));
+  });
+}
+
+// ── PEERJS INIT ──
+function initPeer(name, cb){
+  myName=name.trim()||'Player';
+  const id='sab-'+Math.random().toString(36).slice(2,7).toUpperCase();
+  peer=new Peer(id,{debug:0});
+  peer.on('open',pid=>{myId=pid;cb(pid);});
+  peer.on('error',e=>{setStatus('host-status','❌ '+e.message,'error');setStatus('join-status','❌ '+e.message,'error');});
+}
+
+// ── HOST ──
+function createRoom(){
+  const name=document.getElementById('host-name').value.trim();
+  if(!name){toast('Enter your name','error');return;}
+  numPlayers=chosenPC;
+  setStatus('host-status','Connecting to P2P network…');
+  initPeer(name, pid=>{
+    roomCode=pid.replace('sab-','');
+    isHost=true;
+    document.getElementById('room-id-display').textContent=roomCode;
+    document.getElementById('total-count').textContent=numPlayers;
+    document.getElementById('room-created').style.display='block';
+    setStatus('host-status','✅ Room created! Waiting for players…');
+    updateWaitingList([{name:myName,id:myId}]);
+
+    peer.on('connection', conn=>{
+      conn.on('open',()=>{
+        peerConns[conn.peer]=conn;
+        conn.on('data', d=>onHostReceive(conn.peer, d));
+        conn.on('close',()=>{
+          delete peerConns[conn.peer];
+          refreshWaitingFromPeers();
+        });
+        // Send current player list
+        broadcastOrSend('lobby-update',{players:getLobbyPlayers()}, conn);
+      });
+    });
+  });
+}
+
+function getLobbyPlayers(){
+  const list=[{name:myName,id:myId}];
+  Object.keys(peerConns).forEach(pid=>{
+    if(peerConns[pid]._peerName) list.push({name:peerConns[pid]._peerName,id:pid});
+  });
+  return list;
+}
+
+function refreshWaitingFromPeers(){
+  updateWaitingList(getLobbyPlayers());
+  const count=Object.keys(peerConns).length+1;
+  document.getElementById('joined-count').textContent=count;
+  document.getElementById('start-game-btn').disabled=count<2;
+}
+
+function updateWaitingList(players){
+  const el=document.getElementById('players-waiting');
+  el.innerHTML=players.map((p,i)=>`<div class="pw-item"><span class="pw-dot" style="${i===0?'':''}"></span>${p.name}${i===0?' (host)':''}</div>`).join('');
+  document.getElementById('joined-count').textContent=players.length;
+  document.getElementById('start-game-btn').disabled=players.length<2;
+}
+
+function onHostReceive(peerId, data){
+  if(data.type==='hello'){
+    peerConns[peerId]._peerName=data.name;
+    broadcastToAll('lobby-update',{players:getLobbyPlayers()});
+    refreshWaitingFromPeers();
+  } else if(data.type==='role-acked'){
+    ackedCount++;
+    if(ackedCount>=numPlayers) broadcastToAll('game-start-ack',{});
+  } else if(data.type==='move'){
+    processMove(data.move, peerId);
+  }
+}
+
+function hostStartGame(){
+  if(Object.keys(peerConns).length<1){toast('Need at least 2 players','error');return;}
+  numPlayers=Object.keys(peerConns).length+1;
+  buildGameState();
+  // Send each peer their role + hand privately
+  const peerIds=Object.keys(peerConns);
+  peerIds.forEach((pid,i)=>{
+    const playerIdx=i+1;
+    broadcastOrSend('your-role',{
+      role: G.roles[playerIdx],
+      hand: G.players[playerIdx].hand,
+      playerIdx,
+      playerName: peerConns[pid]._peerName||('Player '+(playerIdx+1))
+    }, peerConns[pid]);
+  });
+  // Host gets index 0
+  myRole=G.roles[0];
+  showRoleScreen(myRole, G.players[0].hand, 0);
+  // Broadcast public game state
+  broadcastToAll('game-state',sanitiseState());
+}
+
+// ── JOIN ──
+function joinRoom(){
+  const name=document.getElementById('join-name').value.trim();
+  const code=document.getElementById('join-code').value.trim().toUpperCase();
+  if(!name){toast('Enter your name','error');return;}
+  if(!code){toast('Enter room code','error');return;}
+  setStatus('join-status','Connecting…');
+  initPeer(name, pid=>{
+    const hostId='sab-'+code;
+    hostConn=peer.connect(hostId,{reliable:true});
+    hostConn.on('open',()=>{
+      setStatus('join-status','✅ Connected! Waiting for host…');
+      hostConn.send({type:'hello',name:myName});
+      hostConn.on('data', d=>onPeerReceive(d));
+    });
+    hostConn.on('error',e=>setStatus('join-status','❌ '+e.message));
+    hostConn.on('close',()=>setStatus('join-status','⚠️ Disconnected'));
+  });
+}
+
+function onPeerReceive(data){
+  if(data.type==='lobby-update'){
+    updateWaitingList(data.players);
+    document.getElementById('room-created').style.display='block';
+    const sec=document.getElementById('sec-join');
+    let box=sec.querySelector('.waiting-room');
+    if(!box){
+      box=document.createElement('div');
+      box.className='waiting-room';
+      box.innerHTML='<div class="lbl" style="margin-top:1rem">Players in room</div><div class="players-waiting" id="join-waiting"></div>';
+      sec.appendChild(box);
+    }
+    const jw=document.getElementById('join-waiting');
+    if(jw) jw.innerHTML=data.players.map((p,i)=>`<div class="pw-item"><span class="pw-dot"></span>${p.name}${i===0?' (host)':''}</div>`).join('');
+  } else if(data.type==='your-role'){
+    myRole=data.role;
+    G.myHand=data.hand;
+    G.myPlayerIdx=data.playerIdx;
+    showRoleScreen(myRole, data.hand, data.playerIdx);
+  } else if(data.type==='game-state'){
+    applyState(data.state);
+  } else if(data.type==='game-start-ack'){
+    showScreen('game-screen');
+    buildBoardUI();
+    renderAll();
+  } else if(data.type==='game-over'){
+    endGame(data.winner, data.roles);
+  }
+}
+
+// ── MESSAGE HELPERS ──
+function broadcastToAll(type,payload){
+  Object.values(peerConns).forEach(c=>c.send({type,...payload}));
+}
+function broadcastOrSend(type,payload,conn){
+  conn.send({type,...payload});
+}
+function sendToHost(type,payload){
+  if(isHost) processHostMessage(type,payload);
+  else if(hostConn) hostConn.send({type,...payload});
+}
+function processHostMessage(type,payload){
+  if(type==='move') processMove(payload.move,'host-self');
+  else if(type==='role-acked'){ackedCount++;if(ackedCount>=numPlayers)broadcastToAll('game-start-ack',{});}
+}
+
+// ── GAME STATE BUILD (host only) ──
+function buildGameState(){
+  G={
+    round:1, currentPlayer:0,
+    discardPile:[], placedCards:{}, goldFound:false,
+    players:[], roles:[], goalCards:buildGoalCards(),
+    goalRevealed:[false,false,false],
+    deck:[], numPlayers
+  };
+  const allConns=[{id:myId,name:myName},...Object.entries(peerConns).map(([id,c])=>({id,name:c._peerName||id}))];
+  G.numPlayers=allConns.length;
+  G.players=allConns.map((p,i)=>({name:p.name,peerId:p.id,hand:[],broken:[],score:0}));
+  G.roles=assignRoles(G.numPlayers);
+  G.deck=buildDeck(); shuffle(G.deck);
+  const hs=G.numPlayers<=5?6:(G.numPlayers<=7?5:4);
+  G.players.forEach(p=>{for(let j=0;j<hs;j++)p.hand.push(G.deck.pop());});
+  G.placedCards[`${START_COL},${START_ROW}`]={type:'start',paths:{T:1,R:1,B:1,L:1},flipped:false};
+}
+
+function sanitiseState(){
+  // Remove private hand info from public state, keep metadata
+  return {
+    round:G.round, currentPlayer:G.currentPlayer,
+    discardPile:G.discardPile.length, deckCount:G.deck.length,
+    placedCards:G.placedCards, goalCards:G.goalCards.map(g=>({isGold:g.isGold&&g.revealed, revealed:g.revealed})),
+    goldFound:G.goldFound, numPlayers:G.numPlayers,
+    players:G.players.map(p=>({name:p.name,peerId:p.id,broken:p.broken,score:p.score,handCount:p.hand.length})),
+    roles:G.goldFound?G.roles:null
+  };
+}
+
+function applyState(s){
+  if(!G) G={};
+  Object.assign(G,s);
+  if(!G.myHand) G.myHand=G.myHand||[];
+  renderAll();
+}
+
+// ── ROLE SCREEN ──
+function showRoleScreen(role, hand, idx){
+  G.myHand=hand; G.myPlayerIdx=idx;
+  const isSab=role==='saboteur';
+  document.getElementById('ri').textContent=isSab?'🦹':'⛏️';
+  const rn=document.getElementById('rn');
+  rn.textContent=isSab?'Saboteur!':'Gold Miner';
+  rn.className='role-name '+(isSab?'saboteur':'miner');
+  document.getElementById('rd').textContent=isSab
+    ?'Prevent miners from reaching the gold. Break tools, block paths, cause chaos!'
+    :'Build a connected tunnel path from Start to the gold. Work with the team!';
+  document.getElementById('role-ack-btn').style.display='block';
+  document.getElementById('role-wait').style.display='none';
+  showScreen('role-screen');
+}
+
+function ackRole(){
+  roleAcked=true;
+  document.getElementById('role-ack-btn').style.display='none';
+  document.getElementById('role-wait').style.display='block';
+  sendToHost('role-acked',{});
+  if(isHost){
+    // host triggers start after all acked
+    ackedCount=ackedCount||0;
+    ackedCount++;
+    if(ackedCount>=G.numPlayers){
+      broadcastToAll('game-start-ack',{});
+      showScreen('game-screen');
+      buildBoardUI();
+      renderAll();
+    }
+  }
+}
+
+// ── BOARD UI ──
+function buildBoardUI(){
+  const grid=document.getElementById('mine-grid');
+  grid.innerHTML='';
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const cell=document.createElement('div');
+    cell.className='cell'; cell.dataset.col=c; cell.dataset.row=r;
+    cell.id=`cell-${c}-${r}`; cell.onclick=()=>cellClick(c,r);
+    grid.appendChild(cell);
+  }
+}
+
+// ── RENDER ──
+function renderAll(){
+  if(!document.getElementById('mine-grid')) return;
+  renderBoard(); renderHand(); renderPlayers(); renderSidebar();
+  const isMyTurn=isCurrentPlayerMe();
+  document.getElementById('waiting-turn-msg').style.display=isMyTurn?'none':'block';
+  document.getElementById('cur-hint').textContent=isMyTurn?'Your turn':'Their turn';
+}
+
+function isCurrentPlayerMe(){
+  if(!G.players) return false;
+  const cp=G.players[G.currentPlayer];
+  if(!cp) return false;
+  return cp.peerId===myId;
+}
+
+function renderBoard(){
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const cell=document.getElementById(`cell-${c}-${r}`);
+    if(!cell) return;
+    cell.innerHTML=''; cell.className='cell'; cell.style.background=''; cell.style.outline='';
+  }
+  if(G.placedCards) {
+    drawCard(START_COL,START_ROW,G.placedCards[`${START_COL},${START_ROW}`],true);
+    GOAL_ROWS.forEach((gr,gi)=>drawGoal(GOAL_COL,gr,gi));
+    Object.entries(G.placedCards).forEach(([key,card])=>{
+      const[c,r]=key.split(',').map(Number);
+      if(c===START_COL&&r===START_ROW) return;
+      drawCard(c,r,card,false);
+    });
+  }
+  if(selectedCard&&selectedCard.cardType==='tunnel'&&isCurrentPlayerMe()&&!isPlayerBroken()){
+    getPlaceableCells().forEach(([c,r])=>{
+      const cell=document.getElementById(`cell-${c}-${r}`);
+      if(cell) cell.classList.add('placeable');
+    });
+  }
+  if(selectedCellKey){
+    const[c,r]=selectedCellKey.split(',').map(Number);
+    const cell=document.getElementById(`cell-${c}-${r}`);
+    if(cell) cell.classList.add('selected-cell');
+  }
+}
+
+function drawCard(col,row,card,isStart){
+  if(!card) return;
+  const cell=document.getElementById(`cell-${col}-${row}`);
+  if(!cell) return;
+  cell.classList.add('has-card');
+  const cv=document.createElement('canvas');
+  cv.width=68;cv.height=68;cv.className='tc';
+  cell.style.position='relative'; cell.appendChild(cv);
+  const ctx=cv.getContext('2d');
+  const W=68,H=68,cx=W/2,cy=H/2;
+  ctx.fillStyle=isStart?'#1A5C2A':'#4A3500';
+  ctx.beginPath();ctx.roundRect(0,0,W,H,6);ctx.fill();
+  ctx.strokeStyle=isStart?'#2ECC71':'#D4A017';ctx.lineWidth=2;
+  ctx.beginPath();ctx.roundRect(1,1,W-2,H-2,5);ctx.stroke();
+  const paths=card.flipped?flipPaths(card.paths):card.paths;
+  const tw=14;
+  ctx.fillStyle='#8B6000';
+  if(paths.L)ctx.fillRect(0,cy-tw/2,cx,tw);
+  if(paths.R)ctx.fillRect(cx,cy-tw/2,cx,tw);
+  if(paths.T)ctx.fillRect(cx-tw/2,0,tw,cy);
+  if(paths.B)ctx.fillRect(cx-tw/2,cy,tw,cy);
+  const any=paths.L||paths.R||paths.T||paths.B;
+  if(any)ctx.fillRect(cx-tw/2,cy-tw/2,tw,tw);
+  ctx.fillStyle='#D4A017';const iw=8;
+  if(paths.L)ctx.fillRect(0,cy-iw/2,cx,iw);
+  if(paths.R)ctx.fillRect(cx,cy-iw/2,cx,iw);
+  if(paths.T)ctx.fillRect(cx-iw/2,0,iw,cy);
+  if(paths.B)ctx.fillRect(cx-iw/2,cy,iw,cy);
+  if(any)ctx.fillRect(cx-iw/2,cy-iw/2,iw,iw);
+  if(isStart){ctx.fillStyle='#FFF';ctx.font='bold 9px sans-serif';ctx.textAlign='center';ctx.fillText('START',cx,H-8);}
+}
+
+function drawGoal(col,row,gi){
+  const cell=document.getElementById(`cell-${col}-${row}`);
+  if(!cell) return;
+  cell.classList.add('has-card');
+  const cv=document.createElement('canvas');
+  cv.width=68;cv.height=68;cv.className='tc';
+  cell.style.position='relative';cell.appendChild(cv);
+  const ctx=cv.getContext('2d');
+  const W=68,H=68;
+  const goal=G.goalCards?G.goalCards[gi]:{};
+  const rev=goal.revealed||G.goldFound;
+  ctx.fillStyle=rev&&goal.isGold?'#5C3800':'#1A1A3A';
+  ctx.beginPath();ctx.roundRect(0,0,W,H,6);ctx.fill();
+  ctx.strokeStyle=rev&&goal.isGold?'#F5A623':'#4A4A7A';
+  ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(1,1,W-2,H-2,5);ctx.stroke();
+  if(rev){
+    ctx.font='28px serif';ctx.textAlign='center';
+    ctx.fillText(goal.isGold?'💎':'🪨',W/2,H/2+10);
+    ctx.fillStyle=goal.isGold?'#F5A623':'#6A6A9A';
+    ctx.font='bold 8px sans-serif';ctx.fillText(goal.isGold?'GOLD!':'ROCK',W/2,H-8);
+  } else {
+    ctx.font='24px serif';ctx.textAlign='center';ctx.fillText('❓',W/2,H/2+8);
+    ctx.fillStyle='#4A4A7A';ctx.font='bold 8px sans-serif';ctx.fillText('GOAL',W/2,H-8);
+  }
+}
+
+function flipPaths(p){return{T:p.B,B:p.T,L:p.R,R:p.L};}
+
+function renderHand(){
+  const hand=G.myHand||[];
+  const area=document.getElementById('hand-area');
+  area.innerHTML='';
+  const myTurn=isCurrentPlayerMe();
+  hand.forEach((card,i)=>{
+    const div=document.createElement('div');
+    div.className='hand-card'+(card.cardType==='action'?' action-card':'')+(selectedCard===card?' selected':'')+(myTurn?'':' disabled');
+    if(myTurn) div.onclick=()=>selectCard(i);
+    div.innerHTML=`<div class="hc-icon">${card.icon}</div><div class="hc-info"><div class="hc-name">${card.name}</div><div class="hc-desc">${card.cardType==='action'?card.desc:tunnelDesc(card)}</div></div>`;
+    area.appendChild(div);
+  });
+  const isTunnel=selectedCard&&selectedCard.cardType==='tunnel';
+  const isAction=selectedCard&&selectedCard.cardType==='action';
+  document.getElementById('flip-btn').style.display=isTunnel&&myTurn?'block':'none';
+  document.getElementById('place-btn').disabled=!(isTunnel&&selectedCellKey&&myTurn&&!isPlayerBroken());
+  document.getElementById('action-btn').disabled=!(isAction&&myTurn);
+  const si=document.getElementById('sel-info');
+  if(selectedCard&&myTurn){
+    si.style.display='block';
+    si.textContent=isTunnel?(selectedCellKey?'Click Place Tunnel to confirm':'Click a green cell on the board'):'Click Use Action Card';
+  } else si.style.display='none';
+}
+
+function tunnelDesc(card){
+  const p=card.flipped?flipPaths(card.paths):card.paths;
+  const s=['T','R','B','L'].filter(x=>p[x]).map(x=>({T:'↑',R:'→',B:'↓',L:'←'}[x]));
+  return'Opens: '+(s.join(' ')||'none');
+}
+
+function renderPlayers(){
+  const list=document.getElementById('player-list');
+  if(!list||!G.players) return;
+  list.innerHTML='';
+  G.players.forEach((p,i)=>{
+    const isMe=p.peerId===myId;
+    const isCur=i===G.currentPlayer;
+    const div=document.createElement('div');
+    div.className='player-item'+(isCur?' current':'')+(isMe?' you':'');
+    div.innerHTML=`<div class="p-av" style="background:${COLORS[i]}22;color:${COLORS[i]}">${i+1}</div><span class="p-nm">${p.name}${isMe?' (you)':''}</span>${p.broken&&p.broken.length?'<span class="brk-ic">🔴</span>':''}<span style="font-size:.7rem;color:var(--gold)">${p.score||0}pt</span>`;
+    list.appendChild(div);
+  });
+  const cp=G.players[G.currentPlayer];
+  document.getElementById('cur-pname').textContent=cp?cp.name:'';
+}
+
+function renderSidebar(){
+  if(!G) return;
+  document.getElementById('round-num').textContent=G.round||1;
+  document.getElementById('deck-count').textContent=G.deckCount||0;
+  document.getElementById('disc-count').textContent=G.discardPile||0;
+  const gi=document.getElementById('goals-info');
+  if(gi&&G.goalCards){
+    gi.innerHTML='';
+    G.goalCards.forEach((g,i)=>{
+      const d=document.createElement('div');
+      d.className='goal-pill'+(g.isGold&&G.goldFound?' found':g.revealed?' revealed':'');
+      d.textContent=`G${i+1}`;
+      gi.appendChild(d);
+    });
+  }
+}
+
+// ── SELECTION ──
+function selectCard(idx){
+  if(!isCurrentPlayerMe()) return;
+  const hand=G.myHand||[];
+  if(selectedCard===hand[idx]){selectedCard=null;selectedCellKey=null;}
+  else{selectedCard=hand[idx];selectedCellKey=null;if(selectedCard.cardType==='tunnel')selectedCard.flipped=false;}
+  renderAll();
+}
+
+function flipSelected(){
+  if(!selectedCard||selectedCard.cardType!=='tunnel') return;
+  selectedCard.flipped=!selectedCard.flipped;
+  renderAll();
+}
+
+function cellClick(col,row){
+  if(!isCurrentPlayerMe()||!selectedCard) return;
+  const key=`${col},${row}`;
+  if(selectedCard.cardType==='tunnel'){
+    if(isPlayerBroken()){toast('Your tools are broken!','error');return;}
+    if(!getPlaceableCells().some(([c,r])=>c===col&&r===row)){toast("Can't place here!",'error');return;}
+    selectedCellKey=key; renderAll();
+  } else if(selectedCard.cardType==='action'&&selectedCard.id==='collapse'){
+    if(!G.placedCards||!G.placedCards[key]||key===`${START_COL},${START_ROW}`){toast('No tunnel card there!','error');return;}
+    if(isGoalCell(col,row)){toast("Can't remove a goal card!",'error');return;}
+    selectedCellKey=key; renderAll();
+  }
+}
+
+// ── MOVES ──
+function placeCard(){
+  if(!selectedCard||!selectedCellKey||!isCurrentPlayerMe()) return;
+  if(isPlayerBroken()){toast('Tools broken!','error');return;}
+  const[col,row]=selectedCellKey.split(',').map(Number);
+  sendMove({type:'place',card:selectedCard,col,row});
+  selectedCard=null; selectedCellKey=null;
+}
+
+function discardSelected(){
+  if(!selectedCard){toast('Select a card first','error');return;}
+  if(!isCurrentPlayerMe()){toast('Not your turn','error');return;}
+  sendMove({type:'discard',card:selectedCard});
+  selectedCard=null; selectedCellKey=null;
+}
+
+function useActionCard(){
+  if(!selectedCard||selectedCard.cardType!=='action'||!isCurrentPlayerMe()) return;
+  const ac=selectedCard;
+  if(ac.id==='map') showMapChoice();
+  else if(ac.id==='collapse'){
+    if(!selectedCellKey){toast('Click a tunnel card on the board first','error');return;}
+    sendMove({type:'action',actionId:'collapse',targetCell:selectedCellKey,card:selectedCard});
+    selectedCard=null; selectedCellKey=null;
+  } else if(ac.id.startsWith('brk-')||ac.id.startsWith('fix-')){
+    showTargetOverlay(ac);
+  }
+}
+
+function showMapChoice(){
+  openTgt('👁 Peek at which goal?', GOAL_ROWS.map((_,gi)=>({
+    label:`Goal ${gi+1}${G.goalCards&&G.goalCards[gi].revealed?' (known)':''}`,
+    action:()=>{
+      sendMove({type:'action',actionId:'map',goalIdx:gi,card:selectedCard});
+      selectedCard=null; selectedCellKey=null; closeTgt();
+    }
+  })));
+}
+
+function showTargetOverlay(ac){
+  const tool=ac.id.split('-')[1];
+  const mode=ac.id.startsWith('brk')?'break':'fix';
+  const toolNames={pick:'Pickaxe',lamp:'Lamp',cart:'Cart'};
+  const targets=(G.players||[]).filter((p,i)=>{
+    if(mode==='break'&&p.peerId===myId) return false;
+    if(mode==='break'&&p.broken&&p.broken.includes(tool)) return false;
+    if(mode==='fix'&&(!p.broken||!p.broken.includes(tool))) return false;
+    return true;
+  });
+  openTgt(mode==='break'?`Break whose ${toolNames[tool]}?`:`Fix whose ${toolNames[tool]}?`,
+    targets.map((p,i)=>({
+      label:p.name+(mode==='fix'?` (broken ${toolNames[tool]})`:'')+((G.players||[]).findIndex(x=>x.peerId===p.peerId)===G.myPlayerIdx?' (you)':''),
+      action:()=>{
+        const idx=(G.players||[]).findIndex(x=>x.peerId===p.peerId);
+        sendMove({type:'action',actionId:ac.id,targetPlayerIdx:idx,card:selectedCard});
+        selectedCard=null; selectedCellKey=null; closeTgt();
+      }
+    }))
+  );
+}
+
+function openTgt(title, opts){
+  document.getElementById('tgt-title').textContent=title;
+  const tp=document.getElementById('tgt-players');
+  tp.innerHTML='';
+  if(!opts.length){tp.innerHTML='<p style="color:var(--muted);font-size:.85rem">No valid targets</p>';}
+  opts.forEach(o=>{
+    const btn=document.createElement('button');
+    btn.className='tgt-btn'; btn.textContent=o.label;
+    btn.onclick=o.action; tp.appendChild(btn);
+  });
+  document.getElementById('tgt-overlay').classList.add('visible');
+}
+function closeTgt(){document.getElementById('tgt-overlay').classList.remove('visible');}
+
+function sendMove(move){
+  sendToHost('move',{move});
+}
+
+// ── HOST PROCESSES MOVES ──
+function processMove(move, fromPeerId){
+  const playerIdx=G.players.findIndex(p=>p.peerId===(fromPeerId==='host-self'?myId:fromPeerId));
+  if(playerIdx!==(G.currentPlayer)){return;} // not their turn
+
+  const player=G.players[playerIdx];
+  const hand=player.hand;
+  const cardIdx=hand.findIndex(c=>c.id===move.card.id&&c.cardType===move.card.cardType);
+  if(cardIdx===-1) return;
+
+  if(move.type==='place'){
+    const card=hand.splice(cardIdx,1)[0];
+    card.flipped=move.card.flipped;
+    const key=`${move.col},${move.row}`;
+    G.placedCards[key]=card;
+    addLog(`${player.name} placed a tunnel at (${move.col},${move.row})`,'info');
+    checkGoalReach(move.col,move.row);
+  } else if(move.type==='discard'){
+    const card=hand.splice(cardIdx,1)[0];
+    G.discardPile.push(card);
+    addLog(`${player.name} discarded a card`,'');
+  } else if(move.type==='action'){
+    const card=hand.splice(cardIdx,1)[0];
+    G.discardPile.push(card);
+    const a=move.actionId;
+    if(a==='map'){
+      G.goalCards[move.goalIdx].revealed=true;
+      addLog(`${player.name} peeked at Goal ${move.goalIdx+1}: ${G.goalCards[move.goalIdx].isGold?'GOLD':'rock'}`,'info');
+      // Tell that peer privately
+      const revealMsg={type:'map-reveal',goalIdx:move.goalIdx,isGold:G.goalCards[move.goalIdx].isGold};
+      if(fromPeerId==='host-self'&&isHost) toast(G.goalCards[move.goalIdx].isGold?'💎 That\'s the GOLD!':'🪨 Just rock.');
+      else if(peerConns[fromPeerId]) peerConns[fromPeerId].send(revealMsg);
+    } else if(a==='collapse'){
+      const[tc,tr]=move.targetCell.split(',').map(Number);
+      const removed=G.placedCards[move.targetCell];
+      delete G.placedCards[move.targetCell];
+      if(removed) G.discardPile.push(removed);
+      addLog(`${player.name} caused a cave-in!`,'bad');
+    } else if(a.startsWith('brk-')){
+      const tool=a.split('-')[1];
+      G.players[move.targetPlayerIdx].broken.push(tool);
+      addLog(`${player.name} broke ${G.players[move.targetPlayerIdx].name}'s ${tool}!`,'bad');
+    } else if(a.startsWith('fix-')){
+      const tool=a.split('-')[1];
+      G.players[move.targetPlayerIdx].broken=G.players[move.targetPlayerIdx].broken.filter(t=>t!==tool);
+      addLog(`${player.name} fixed ${G.players[move.targetPlayerIdx].name}'s ${tool}!`,'good');
+    }
+  }
+
+  if(G.goldFound) return;
+
+  // Draw card
+  if(G.deck.length>0) player.hand.push(G.deck.pop());
+  const allEmpty=G.deck.length===0&&G.players.every(p=>p.hand.length===0);
+  if(allEmpty){broadcastEnd('saboteurs');return;}
+
+  G.currentPlayer=(G.currentPlayer+1)%G.numPlayers;
+  G.round=G.currentPlayer===0?G.round+1:G.round;
+
+  broadcastState();
+
+  // Send updated hand to the player who just moved
+  sendHandUpdate(playerIdx, fromPeerId);
+  // Send updated hand for player who just drew
+  const nextIdx=G.currentPlayer;
+  const nextPeerId=G.players[nextIdx].peerId;
+  sendHandUpdate(nextIdx, nextPeerId===myId?'host-self':Object.keys(peerConns).find(k=>peerConns[k]._peerName===G.players[nextIdx].name||k===nextPeerId));
+}
+
+function sendHandUpdate(playerIdx, peerId){
+  const hand=G.players[playerIdx].hand;
+  if(peerId==='host-self'||G.players[playerIdx].peerId===myId){
+    G.myHand=hand; renderAll();
+  } else {
+    const conn=peerConns[peerId]||Object.values(peerConns).find(c=>c.peer===peerId);
+    if(conn) conn.send({type:'hand-update',hand});
+  }
+}
+
+function broadcastState(){
+  const s=sanitiseState();
+  broadcastToAll('game-state',{state:s});
+  if(isHost){applyState(s);}
+}
+
+function broadcastEnd(winner){
+  G.goldFound=winner==='miners';
+  const roles=G.roles;
+  broadcastToAll('game-over',{winner,roles});
+  endGame(winner,roles);
+}
+
+// ── GOAL CHECK ──
+function checkGoalReach(col,row){
+  GOAL_ROWS.forEach((gr,gi)=>{
+    if(G.goldFound) return;
+    if(isConnectedToStart(GOAL_COL,gr)&&G.goalCards[gi].isGold){
+      G.goldFound=true;
+      G.goalCards[gi].revealed=true;
+      addLog('💎 GOLD FOUND! Miners win!','good');
+      setTimeout(()=>broadcastEnd('miners'),600);
+    } else if(Math.abs(col-GOAL_COL)<=1&&row===gr){
+      G.goalCards[gi].revealed=true;
+    }
+  });
+}
+
+function addLog(msg,type){
+  if(!isHost) return;
+  G.log=G.log||[];
+  G.log.unshift({msg,type});
+  const area=document.getElementById('log-area');
+  if(area){const d=document.createElement('div');d.className='log-entry'+(type?' '+type:'');d.textContent=msg;area.insertBefore(d,area.firstChild);}
+}
+
+// ── PATHFINDING ──
+function isConnectedToStart(col,row){
+  const sk=`${START_COL},${START_ROW}`;
+  if(`${col},${row}`===sk) return true;
+  const visited=new Set();const queue=[[START_COL,START_ROW]];visited.add(sk);
+  const dirs=[[0,-1,'T','B'],[1,0,'R','L'],[0,1,'B','T'],[-1,0,'L','R']];
+  while(queue.length){
+    const[cc,cr]=queue.shift();
+    if(cc===col&&cr===row) return true;
+    const card=G.placedCards[`${cc},${cr}`];if(!card) continue;
+    const paths=card.flipped?flipPaths(card.paths):card.paths;
+    for(const[dc,dr,ms,ts] of dirs){
+      const nc=cc+dc,nr=cr+dr,nk=`${nc},${nr}`;
+      if(visited.has(nk)) continue;
+      if(!paths[ms]) continue;
+      const nc2=G.placedCards[nk];if(!nc2) continue;
+      const np=nc2.flipped?flipPaths(nc2.paths):nc2.paths;
+      if(np[ts]){visited.add(nk);queue.push([nc,nr]);}
+    }
+  }
+  return false;
+}
+
+function getPlaceableCells(){
+  const cells=[];
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    if(c===GOAL_COL&&GOAL_ROWS.includes(r)) continue;
+    if(G.placedCards&&G.placedCards[`${c},${r}`]) continue;
+    if(!isReachable(c,r)) continue;
+    if(canPlace(c,r,selectedCard)) cells.push([c,r]);
+  }
+  return cells;
+}
+
+function isReachable(col,row){
+  const dirs=[[0,-1,'B','T'],[1,0,'L','R'],[0,1,'T','B'],[-1,0,'R','L']];
+  for(const[dc,dr,fs,ts] of dirs){
+    const nc=col+dc,nr=row+dr,nk=`${nc},${nr}`;
+    if(!G.placedCards||!G.placedCards[nk]) continue;
+    const card=G.placedCards[nk];
+    const paths=card.flipped?flipPaths(card.paths):card.paths;
+    if(paths[fs]&&isConnectedToStart(nc,nr)) return true;
+  }
+  return false;
+}
+
+function canPlace(col,row,card){
+  const dirs=[[0,-1,'T','B'],[1,0,'R','L'],[0,1,'B','T'],[-1,0,'L','R']];
+  const paths=card.flipped?flipPaths(card.paths):card.paths;
+  for(const[dc,dr,ms,ts] of dirs){
+    const nc=col+dc,nr=row+dr,nk=`${nc},${nr}`;
+    if(!G.placedCards||!G.placedCards[nk]) continue;
+    const np2=G.placedCards[nk];
+    const np=np2.flipped?flipPaths(np2.paths):np2.paths;
+    if(paths[ms]!==np[ts]) return false;
+  }
+  return true;
+}
+
+function isGoalCell(c,r){return c===GOAL_COL&&GOAL_ROWS.includes(r);}
+function isPlayerBroken(){
+  if(!G.players||G.myPlayerIdx===undefined) return false;
+  return(G.players[G.myPlayerIdx].broken||[]).length>0;
+}
+
+// ── END ──
+function endGame(winner,roles){
+  showScreen('end-screen');
+  const isMW=winner==='miners';
+  document.getElementById('end-icon').textContent=isMW?'💎':'😈';
+  const et=document.getElementById('end-title');
+  et.textContent=isMW?'Miners Win!':'Saboteurs Win!';
+  et.style.color=isMW?'#2ECC71':'#E74C3C';
+  const sl=document.getElementById('score-list');
+  sl.innerHTML='';
+  (G.players||[]).forEach((p,i)=>{
+    const role=roles?roles[i]:'?';
+    const won=(isMW&&role==='miner')||(!isMW&&role==='saboteur');
+    const pts=won?(role==='saboteur'?4:3):0;
+    const li=document.createElement('li');
+    li.innerHTML=`<span>${p.name} <span style="color:${role==='saboteur'?'#E74C3C':'#2ECC71'}">(${role})</span></span><span class="score-val">${pts}pt ${won?'🏆':''}</span>`;
+    sl.appendChild(li);
+  });
+}
+
+// ── HELPERS ──
+function assignRoles(n){
+  const s={3:1,4:1,5:2,6:2,7:3,8:3}[n]||1;
+  let r=[];for(let i=0;i<s;i++)r.push('saboteur');
+  for(let i=s;i<n;i++)r.push('miner');
+  shuffle(r);return r;
+}
+
+function buildGoalCards(){
+  const gi=Math.floor(Math.random()*3);
+  return GOAL_ROWS.map((_,i)=>({isGold:i===gi,revealed:false}));
+}
+
+function buildDeck(){
+  let d=[];
+  TUNNEL_TYPES.forEach(t=>{for(let i=0;i<t.count;i++)d.push({...t,cardType:'tunnel',flipped:false});});
+  ACTION_TYPES.forEach(a=>{for(let i=0;i<a.count;i++)d.push({...a,cardType:'action'});});
+  return d;
+}
+
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}}
+
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function setStatus(id,msg,type){
+  const el=document.getElementById(id);
+  if(!el) return;
+  el.textContent=msg;
+  el.style.color=type==='error'?'var(--red)':type==='ok'?'var(--green)':'var(--muted)';
+}
+
+function toast(msg,type){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast'+(type?' '+type:'');
+  t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2500);
+}
+
+// Handle peer-sent events that update local state
+const _origOnPeer=onPeerReceive;
+window._peerRecv=function(data){
+  if(data.type==='hand-update'){G.myHand=data.hand;renderAll();}
+  else if(data.type==='map-reveal'){
+    toast(data.isGold?'💎 That\'s the GOLD!':'🪨 Just rock.');
+  } else _origOnPeer(data);
+};
+// Patch to use extended handler
+function onPeerReceive(data){window._peerRecv(data);}
+if(hostConn) hostConn.on('data',onPeerReceive);
+</script>
+</body>
+</html>
